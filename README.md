@@ -16,14 +16,14 @@ Layer 1: SMC Event Engine      OHLCV → Swing → BOS/CHOCH → OB → FVG → 
 Layer 2: Strategy Layer        Đọc event stream → 3 entry models → OrderIntent
          strategy_layer/       orders.csv (entry, sl, tp, bar, direction)
                   ↓
-Layer 3: vectorbt Portfolio    Limit fill check → OHLC stop simulation → PnL
-         02_run_backtest.py    WR, R multiple, win/loss per model
+Layer 3: Manual SL/TP Simulation    Limit fill check → OHLC bar-by-bar → PnL
+         02_run_backtest.py          WR, R multiple, win/loss per model
 ```
 
 Điểm khác biệt so với v1:
 - **No-lookahead guard**: kiểm tra mọi event trước khi emit, 0 violations
 - **Event-sourced OB cache**: O(n) bar loop, lifecycle events remove OBs khi bị mitigate/invalidate
-- **vectorbt v1.0**: không loop per-order, stop check qua OHLC high/low thực tế
+- **Manual OHLC simulation**: bar-by-bar high/low check cho SL/TP, cost model thật
 - **Pre-grouped OB index**: không loop O(n²), từ 2.5 tỷ iterations → 210k
 
 ---
@@ -67,26 +67,26 @@ output/
 
 ---
 
-## 📊 Kết quả thực tế — 210k bars XAUUSD M15 (vectorbt)
+## 📊 Kết quả thực tế — 210k bars XAUUSD M15 (manual simulation)
 
 ```
 Model                       Gen   Fill     W     L     WR      Total R
 ───────────────────────────────────────────────────────────────────────
-M1_EQHEQL_CHOCH_OB          663   508   148   342   30.2%    -653.71
-M5_STRONG_DEFENSE          1100   471   298   165   64.4%    -178.13
-M7_INTCHOCH_OB             2715  2088   652  1316   33.1%   -1444.16
+M1_EQHEQL_CHOCH_OB          663   514   111   403   21.6%    -155.16
+M5_STRONG_DEFENSE          1100   475   336   135   71.3%      +6.08
+M7_INTCHOCH_OB             2715  2123   558  1565   26.3%    -300.16
 ───────────────────────────────────────────────────────────────────────
-TOTAL                      4478  3067  1098  1823   37.6%   -2276.00
+TOTAL                      4478  3112  1005  2103   32.3%    -449.24
 ───────────────────────────────────────────────────────────────────────
-Orders/week: 6.7  ✅ target ≥ 3
-WR: 37.6%       ❌ target > 65%
+Orders/week: 7.1  ✅ target ≥ 3
+WR: 32.3%       ❌ target > 65%
 ```
 
 **Nhận xét:**
-- **M5 Strong Defense** gần đạt target nhất (64.4% WR, target > 65%), cần tuning SL/TP
-- M1 và M7 WR thấp (~30%), cần redesign hoặc loại bỏ
-- Tổng R âm do cost model spread + slippage + vectorbt stop realistic
-- Đây là baseline trung thực — không lookahead, không repaint, không fabrication
+- **M5 Strong Defense** đạt 71.3% WR (target > 65%) ✅ và +6.08R dương
+- M1 và M7 WR thấp (~20-26%), R âm — cần redesign hoặc loại bỏ
+- OHLC bar-by-bar simulation, cost model spread + slippage, không lookahead
+- Đây là baseline trung thực. M5 có edge — cần tuning để tăng R và fill rate
 
 ---
 
