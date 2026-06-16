@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (large files — track via git-lfs or keep local)
+data/*.parquet
+!data/*.md
+
+# Generated CSV output
+*.csv
+!requirements.txt
+!.gitignore
+
+# Config override
+local_*.yaml

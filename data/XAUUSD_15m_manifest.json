@@ -1,0 +1,15 @@
+{
+    "dataset_path": "D:\\Back test\\Dukascopy\\processed\\XAUUSD_15m.parquet",
+    "checksum_sha256": "2a3eb5c05788967f200d843411d6d61a259e770a4a82262fc7c97fcf6e39ca35",
+    "schema_version": "1.0.0",
+    "source_metadata": {
+        "symbol": "XAUUSD",
+        "timeframe": "15m",
+        "row_count": 210398
+    },
+    "quality_report": {
+        "schema_valid": true,
+        "hard_failures": [],
+        "soft_warnings": []
+    }
+}

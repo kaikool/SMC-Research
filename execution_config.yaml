@@ -1,0 +1,47 @@
+execution:
+  fill_model: conservative_ohlc
+  trade_on_close: false
+
+  spread:
+    mode: from_data
+    fallback_points:
+      XAUUSD: 25
+      GBPUSD: 12
+      EURUSD: 10
+
+  slippage:
+    mode: fixed
+    points:
+      XAUUSD: 5
+      GBPUSD: 2
+      EURUSD: 2
+
+  commission:
+    mode: per_lot
+    per_lot_round_turn:
+      XAUUSD: 7.0
+      GBPUSD: 7.0
+      EURUSD: 7.0
+
+  account:
+    initial_balance: 10000
+    currency: USD
+    leverage: 100
+
+  margin:
+    enabled: true
+    stop_out_level: 0.5
+
+  position:
+    allow_hedging: false
+    max_positions_per_symbol: 1
+    max_total_positions: 3
+
+  risk_limits:
+    max_daily_loss_pct: 3.0
+    max_open_risk_pct: 2.0
+    max_daily_orders: 10
+
+  intrabar:
+    model: conservative_ohlc
+    adversarial: true

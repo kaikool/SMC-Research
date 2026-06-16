@@ -1,0 +1,38 @@
+{
+  "XAUUSD": {
+    "quote_currency": "USD",
+    "point_size": 0.01,
+    "pip_size": 0.1,
+    "contract_size": 100,
+    "min_lot": 0.01,
+    "lot_step": 0.01,
+    "max_lot": 100.0,
+    "commission_per_lot_round_turn": 7.0,
+    "leverage": 100,
+    "base_spread_points": 25
+  },
+  "GBPUSD": {
+    "quote_currency": "USD",
+    "point_size": 0.00001,
+    "pip_size": 0.0001,
+    "contract_size": 100000,
+    "min_lot": 0.01,
+    "lot_step": 0.01,
+    "max_lot": 100.0,
+    "commission_per_lot_round_turn": 7.0,
+    "leverage": 100,
+    "base_spread_points": 12
+  },
+  "EURUSD": {
+    "quote_currency": "USD",
+    "point_size": 0.00001,
+    "pip_size": 0.0001,
+    "contract_size": 100000,
+    "min_lot": 0.01,
+    "lot_step": 0.01,
+    "max_lot": 100.0,
+    "commission_per_lot_round_turn": 7.0,
+    "leverage": 100,
+    "base_spread_points": 10
+  }
+}
