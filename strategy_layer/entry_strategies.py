@@ -257,6 +257,7 @@ class Model5_StrongDefense(BaseModel):
 # M7: Int CHOCH → Int OB (optimized SL/TP)
 # ═══════════════════════════════════════════════════════════
 class Model7_IntCHOCH_OB(BaseModel):
+    """Int CHOCH → Int OB — vào LIMIT tại OB mid, chờ giá quay lại."""
     def __init__(self, config=None):
         super().__init__("M7_INTCHOCH_OB", config)
         self.pending = []
