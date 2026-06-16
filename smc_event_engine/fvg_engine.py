@@ -45,7 +45,7 @@ class FVGEngine:
         if self.cfg.fvg.use_htf:
             new_events = self._detect_htf_fvg(bar, bar_index, all_bars, atr_value)
         else:
-            new_events = self._detect_same_tf_fvg(bar, bar_index, atr_value)
+            new_events = self._detect_same_tf_fvg(bar, bar_index, all_bars, atr_value)
         events.extend(new_events)
 
         return events
@@ -142,18 +142,56 @@ class FVGEngine:
         return events
 
     def _detect_same_tf_fvg(self, bar: Bar, bar_index: int,
-                             atr_value: float) -> list[Event]:
-        """Same-timeframe FVG using 3 consecutive bars (non-HTF)."""
+                             all_bars: list[Bar], atr_value: float) -> list[Event]:
+        """Same-timeframe FVG using 3 consecutive bars — LuxAlgo logic.
+        
+        Bullish FVG: bar[0].low > bar[2].high (gap up)
+        Bearish FVG: bar[0].high < bar[2].low (gap down)
+        """
         events: list[Event] = []
         if bar_index < 2:
             return events
 
-        # We need bars [bar_index-2, bar_index-1, bar_index]
-        # LuxAlgo pattern: bar-2 high, bar-1 any, bar-0 low
-        # Actually in same-TF mode, we use a simpler check
+        b2 = all_bars[bar_index - 2]  # 2 bars ago
+        
+        # Bullish FVG: current low > 2nd last high
+        if bar.low > b2.high:
+            self._fvg_counter += 1
+            top, bot = bar.low, b2.high
+            fvg = FVG(
+                id=f"FVG_{self._fvg_counter}", direction=BULLISH,
+                top=top, bottom=bot, mid=(top + bot) / 2,
+                left_bar=bar_index - 2, middle_bar=bar_index - 1, right_bar=bar_index,
+                created_at=bar.timestamp, status=FVG_ACTIVE,
+            )
+            self.fair_value_gaps.insert(0, fvg)
+            events.append(Event(
+                timestamp=bar.timestamp, bar_index=bar_index,
+                symbol=bar.symbol, timeframe=bar.timeframe,
+                event_type="FVG_CREATED", direction=BULLISH,
+                price=bar.close, level_top=top, level_bottom=bot,
+                object_id=fvg.id, status=FVG_ACTIVE, confirmed=True,
+            ))
 
-        # For simplicity, use the same pattern as HTF but on the current TF
-        # This is the same FVG logic used in many Pine indicators
+        # Bearish FVG: current high < 2nd last low
+        if bar.high < b2.low:
+            self._fvg_counter += 1
+            top, bot = b2.low, bar.high
+            fvg = FVG(
+                id=f"FVG_{self._fvg_counter}", direction=BEARISH,
+                top=top, bottom=bot, mid=(top + bot) / 2,
+                left_bar=bar_index - 2, middle_bar=bar_index - 1, right_bar=bar_index,
+                created_at=bar.timestamp, status=FVG_ACTIVE,
+            )
+            self.fair_value_gaps.insert(0, fvg)
+            events.append(Event(
+                timestamp=bar.timestamp, bar_index=bar_index,
+                symbol=bar.symbol, timeframe=bar.timeframe,
+                event_type="FVG_CREATED", direction=BEARISH,
+                price=bar.close, level_top=top, level_bottom=bot,
+                object_id=fvg.id, status=FVG_ACTIVE, confirmed=True,
+            ))
+
         return events
 
     def _check_fvg_fill(self, bar: Bar, bar_index: int) -> list[Event]:

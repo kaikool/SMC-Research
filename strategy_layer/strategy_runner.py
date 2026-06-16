@@ -106,7 +106,21 @@ class StrategyRunner:
             snap = self.engine._snapshots.get(bar_index, {})
             bar_events = self._events_by_bar.get(bar_index, [])
             timestamp = int(bar_events[0].get("timestamp", 0)) if bar_events else 0
-            current_price = float(snap.get("last_close", 0) or snap.get("close", 0))
+            
+            # Lấy current price từ snapshot có sẵn (high/low/close gần nhất)
+            # Snapshot không có close, nên dùng high/low làm xấp xỉ
+            current_price = 0.0
+            try:
+                swing_h = float(snap.get("last_swing_high", 0) or 0)
+                swing_l = float(snap.get("last_swing_low", 0) or 0)
+                if swing_h > 0 and swing_l > 0:
+                    current_price = (swing_h + swing_l) / 2
+                elif swing_h > 0:
+                    current_price = swing_h
+                elif swing_l > 0:
+                    current_price = swing_l
+            except (ValueError, TypeError):
+                pass
 
             # ── 1. Xử lý setup engine ──
             new_setups = self.engine.process_bar(bar_index, timestamp, bar_events)

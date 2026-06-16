@@ -44,6 +44,23 @@ def calculate_sl(setup: Setup, config: StrategyConfig,
             else:
                 sl_price -= buffer
 
+        # --- Giới hạn khoảng cách SL tối đa ---
+        # Tránh SL quá xa entry (vd swing low từ 1000 bars trước)
+        entry = setup.entry_zone_mid
+        if entry > 0 and sl_price > 0:
+            max_distance = config.sl_buffer_atr_ratio * 10  # ATR multiples
+            if max_distance <= 0:
+                # Mặc định: max 2.0 cho XAUUSD (200 pips) / 0.02 cho forex
+                max_distance = 2.0 if entry > 100 else 0.02
+            if setup.direction == DIRECTION_SHORT:
+                actual_dist = sl_price - entry
+                if actual_dist > max_distance:
+                    sl_price = entry + max_distance
+            else:
+                actual_dist = entry - sl_price
+                if actual_dist > max_distance:
+                    sl_price = entry - max_distance
+
     elif sl_type == "ob_extreme":
         if setup.direction == DIRECTION_SHORT:
             sl_price = setup.entry_zone_top + (config.sl_buffer_pips * 0.0001 if config.sl_use_fixed_buffer else 0)

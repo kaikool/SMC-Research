@@ -111,19 +111,18 @@ def main():
 
     # Quick stats from setups
     if runner.setups:
-        entered = [s for s in runner.setups if s.status == "entered"]
-        cancelled = [s for s in runner.setups if s.status == "cancelled"]
-        expired = [s for s in runner.setups if s.status == "expired"]
-        completed = [s for s in runner.setups if s.status == "completed"]
+        all_status = defaultdict(int)
+        for s in runner.setups:
+            all_status[s.status] += 1
 
         print(f"\n{'='*60}")
-        print(f"Setup Flow:")
-        print(f"  Entered  : {len(entered)}")
-        print(f"  Cancelled: {len(cancelled)}")
-        print(f"  Expired  : {len(expired)}")
-        print(f"  Completed: {len(completed)}")
+        print(f"Setup Flow (by status):")
+        for status in ["created", "pending", "armed", "triggered", "entered", "completed", "cancelled", "expired"]:
+            if all_status.get(status, 0) > 0:
+                print(f"  {status:12s}: {all_status[status]}")
+        print(f"  {'orders':12s}: {len(runner.order_intents)}")
 
-        if entered:
+        if runner.order_intents:
             print(f"\nSample orders:")
             for o in runner.order_intents[:5]:
                 print(f"  {o.action} {o.direction:+d} {o.order_type} @ {o.entry_price:.5f} "

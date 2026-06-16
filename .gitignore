@@ -34,3 +34,8 @@ data/*.parquet
 
 # Config override
 local_*.yaml
+
+# Generated output directories (large CSVs, charts, reports)
+output_full*/
+output_full_fvg/
+output_real/

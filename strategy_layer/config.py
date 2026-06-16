@@ -31,7 +31,7 @@ strategy:
 
   # ── Session ──
   session:
-    enabled: true
+    enabled: false
     allowed_sessions: ["london", "new_york", "asia"]
     # timezone: UTC
 
@@ -130,7 +130,7 @@ class StrategyConfig:
     objects_path: str = ""
 
     # Session
-    session_enabled: false
+    session_enabled: bool = False
     allowed_sessions: list = field(default_factory=lambda: ["london", "new_york", "asia"])
 
     # Setup rules
