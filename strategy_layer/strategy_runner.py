@@ -82,7 +82,12 @@ class StrategyRunner:
             self._events_by_bar[bi].append(ev)
             max_bar = max(max_bar, bi)
 
-        self._all_bar_indices = sorted(self._events_by_bar.keys())
+        # Use ALL snapshot bars for the loop, not just bars-with-events
+        if self.engine._snapshots:
+            self._all_bar_indices = sorted(int(k) for k in self.engine._snapshots.keys())
+        else:
+            self._all_bar_indices = sorted(self._events_by_bar.keys())
+            print("WARNING: no snapshots loaded, falling back to event-bar loop")
 
         # Lấy ATR từ snapshot cuối
         last_snap = self.engine._snapshots.get(max_bar, {})
@@ -105,8 +110,8 @@ class StrategyRunner:
         for bar_index in self._all_bar_indices:
             snap = self.engine._snapshots.get(bar_index, {})
             bar_events = self._events_by_bar.get(bar_index, [])
-            timestamp = int(bar_events[0].get("timestamp", 0)) if bar_events else 0
-            
+            timestamp = int(snap.get("timestamp", 0))
+
             # Lấy current price từ snapshot có sẵn (high/low/close gần nhất)
             # Snapshot không có close, nên dùng high/low làm xấp xỉ
             current_price = 0.0
@@ -140,13 +145,13 @@ class StrategyRunner:
             # ── 3. Cập nhật active setups ──
             self._update_active(bar_index, timestamp, snap, bar_events, current_price)
 
-            # Reset session tracking
-            current_day = bar_index // 1440  # approximate day
-            if current_day != self._last_session_day:
+            # Daily reset: use timestamp from snapshot, not approximate bar_index // 1440
+            day_key = timestamp // (86400 * 1000)  # UTC date in days since epoch
+            if day_key != self._last_session_day:
                 self._orders_this_session = 0
-                if current_day > self._last_session_day + 1:
+                if day_key > self._last_session_day + 1:
                     self._orders_today = 0
-                self._last_session_day = current_day
+                self._last_session_day = day_key
 
             # Merge active setups
             self.engine.active_setups = [s for s in self.setups

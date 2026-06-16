@@ -63,6 +63,8 @@ class SMCEngine:
         self.all_bars: list[Bar] = []
         self.prev_close: float = 0.0
         self.events_this_bar: list[Event] = []
+        self.current_bar_index: int = -1
+        self.current_timestamp: int = 0
 
     def run(self, bars: list[Bar]) -> None:
         """Main bar-by-bar loop."""
@@ -77,6 +79,8 @@ class SMCEngine:
     def _process_bar(self, bar: Bar, bar_index: int) -> None:
         """Process a single bar through all engines."""
         self.events_this_bar = []
+        self.current_bar_index = bar_index
+        self.current_timestamp = bar.timestamp
 
         # Update OB engine with parsed prices (bar-by-bar)
         self.ob_engine.on_bar(bar, bar_index, self.swing.atr_value)
@@ -101,6 +105,8 @@ class SMCEngine:
 
         # ── 4. Order Block Mitigation Checks ────────────────────
         ob_mit_events = self.ob_engine.check_mitigations(bar, bar_index, self.swing.atr_value)
+        for ev in ob_mit_events:
+            self.zone_manager.update_from_lifecycle_event(ev)
         self._emit_events(ob_mit_events)
 
         # ── 5. FVG Detection & Fill Check ───────────────────────
@@ -218,6 +224,18 @@ class SMCEngine:
     def _emit_events(self, new_events: list[Event]) -> None:
         """Write events to output and track."""
         for ev in new_events:
+            self.guard.check_no_retroactive_event(
+                event_bar=ev.bar_index,
+                current_bar=self.current_bar_index,
+                event_type=ev.event_type,
+            )
+            self.guard.check_event_time(
+                event_time=ev.timestamp,
+                confirm_time=self.current_timestamp,
+                event_type=ev.event_type,
+                bar=self.current_bar_index,
+            )
+
             # Ensure symbol/timeframe are filled
             if not ev.symbol and self.cfg.symbol:
                 ev.symbol = self.cfg.symbol

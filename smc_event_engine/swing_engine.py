@@ -164,14 +164,16 @@ class SwingEngine:
                 self.trailing_bottom_time = self.times[pivot_idx]
 
             events.append(Event(
-                timestamp=self.times[pivot_idx],
-                bar_index=pivot_idx,
+                timestamp=self.times[bar_index],
+                bar_index=bar_index,
                 symbol="",
                 timeframe="",
                 event_type="SWING_LOW" if is_swing else "INTERNAL_SWING_LOW",
                 direction=BULLISH,
                 price=self.lows[pivot_idx],
                 confirmed=True,
+                metadata=(f"pivot_bar={pivot_idx},pivot_timestamp={self.times[pivot_idx]},"
+                          f"pivot_price={self.lows[pivot_idx]:.5f}"),
             ))
 
         elif started_bearish:
@@ -189,14 +191,16 @@ class SwingEngine:
                 self.trailing_top_time = self.times[pivot_idx]
 
             events.append(Event(
-                timestamp=self.times[pivot_idx],
-                bar_index=pivot_idx,
+                timestamp=self.times[bar_index],
+                bar_index=bar_index,
                 symbol="",
                 timeframe="",
                 event_type="SWING_HIGH" if is_swing else "INTERNAL_SWING_HIGH",
                 direction=BEARISH,
                 price=self.highs[pivot_idx],
                 confirmed=True,
+                metadata=(f"pivot_bar={pivot_idx},pivot_timestamp={self.times[pivot_idx]},"
+                          f"pivot_price={self.highs[pivot_idx]:.5f}"),
             ))
 
         # Update leg
@@ -226,13 +230,15 @@ class SwingEngine:
                 if is_new:
                     self.equal_lows.append(PivotPoint("equal_low", self.lows[pivot_idx], pivot_idx, self.times[pivot_idx]))
                     events.append(Event(
-                        timestamp=self.times[pivot_idx],
-                        bar_index=pivot_idx,
+                        timestamp=self.times[bar_index],
+                        bar_index=bar_index,
                         symbol="", timeframe="",
                         event_type="EQUAL_LOW",
                         direction=BULLISH,
                         price=self.lows[pivot_idx],
                         confirmed=True,
+                        metadata=(f"level_bar={pivot_idx},level_timestamp={self.times[pivot_idx]},"
+                                  f"level_price={self.lows[pivot_idx]:.5f}"),
                     ))
 
             # Check equal high
@@ -245,13 +251,15 @@ class SwingEngine:
                 if is_new:
                     self.equal_highs.append(PivotPoint("equal_high", self.highs[pivot_idx], pivot_idx, self.times[pivot_idx]))
                     events.append(Event(
-                        timestamp=self.times[pivot_idx],
-                        bar_index=pivot_idx,
+                        timestamp=self.times[bar_index],
+                        bar_index=bar_index,
                         symbol="", timeframe="",
                         event_type="EQUAL_HIGH",
                         direction=BEARISH,
                         price=self.highs[pivot_idx],
                         confirmed=True,
+                        metadata=(f"level_bar={pivot_idx},level_timestamp={self.times[pivot_idx]},"
+                                  f"level_price={self.highs[pivot_idx]:.5f}"),
                     ))
 
         return events

@@ -308,105 +308,14 @@ class Model7_IntCHOCH_OB(BaseModel):
 # Full pipeline runner with execution layer
 # ═══════════════════════════════════════════════════════════
 def run_full_pipeline(events_path, snapshots_path, objects_path, prices_path=None):
-    """Run all optimized models and simulate trades via execution layer."""
-    import sys, os
-    sys.path.insert(0, os.path.dirname(__file__))
-    
-    from execution_layer.execution_engine import ExecutionEngine
-    from execution_layer.execution_config import ExecutionConfig
-    
-    # Load data
-    with open(snapshots_path) as f:
-        all_snaps = list(csv.DictReader(f))
-    
-    bar_snapshots = {int(s["bar_index"]): s for s in all_snaps}
-    
-    with open(events_path) as f:
-        events_by_bar = defaultdict(list)
-        for row in csv.DictReader(f):
-            events_by_bar[int(row["bar_index"])].append(row)
-    
-    with open(objects_path) as f:
-        all_objects = list(csv.DictReader(f))
-    
-    # Map OB timestamps to bar indices
-    ts_to_bar = {}
-    for s in all_snaps:
-        try: ts_to_bar[int(s["timestamp"])] = int(s["bar_index"])
-        except: pass
-    
-    for ob in all_objects:
-        try:
-            ob_ts = int(ob.get("created_at", 0))
-            bi = ts_to_bar.get(ob_ts, -1)
-            if bi == -1 and ob_ts > 0:
-                sorted_ts = sorted(k for k in ts_to_bar.keys() if k <= ob_ts)
-                if sorted_ts: bi = ts_to_bar[sorted_ts[-1]]
-            ob["_bar_index"] = bi
-        except: ob["_bar_index"] = -1
-    
-    objects_by_bar = defaultdict(list)
-    for ob in all_objects:
-        bi = ob.get("_bar_index", -1)
-        if bi >= 0: objects_by_bar[bi].append(ob)
-    
-    # Build OB cache with WINDOW=200
-    active_ob_cache = {}
-    recent_obs = []
-    bar_indices = sorted(bar_snapshots.keys())
-    for bi in bar_indices:
-        for ob in objects_by_bar.get(bi, []): recent_obs.append(ob)
-        recent_obs = [ob for ob in recent_obs if bi - ob.get("_bar_index", 0) <= 200]
-        active_ob_cache[bi] = list(recent_obs)
-    
-    print(f"Loaded {len(bar_indices)} bars, {len(all_objects)} objects")
-    
-    # Initialize models
-    models = [
-        ("M1_EQHEQL_CHOCH_OB", Model1_EQHEQL_Sweep_InternalCHOCH()),
-        ("M5_STRONG_DEFENSE", Model5_StrongDefense()),
-        ("M7_INTCHOCH_OB", Model7_IntCHOCH_OB()),
-    ]
-    
-    # Initialize execution engine
-    exec_cfg = ExecutionConfig()
-    exec_cfg.initial_capital = 10000.0
-    exec_cfg.commission_pct = 0.01  # 0.01% per trade
-    exec_cfg.slippage_pips = 1.0
-    
-    engine = ExecutionEngine(exec_cfg)
-    
-    # Run simulation
-    all_orders = []
-    
-    for model_name, model in models:
-        orders = []
-        for bi in bar_indices:
-            bar_events = events_by_bar.get(bi, [])
-            snapshot = bar_snapshots.get(bi, {})
-            obs = active_ob_cache.get(bi, [])
-            bar_orders = model.on_bar(bi, bar_events, snapshot, obs)
-            orders.extend(bar_orders)
-        
-        print(f"{model_name}: {len(orders)} orders")
-        all_orders.extend(orders)
-        
-        # Feed to execution engine
-        for o in orders:
-            engine.submit_order(
-                order_id=o.setup_id,
-                symbol="XAUUSD",
-                direction=o.direction,
-                order_type=o.order_type,
-                price=o.entry_price,
-                quantity=0.01,  # fixed 0.01 lot
-                sl_price=o.sl_price,
-                tp_price=o.tp_price,
-                timestamp=o.timestamp,
-            )
-    
-    # Run engine
-    print(f"\nRunning execution engine on {len(bar_indices)} bars...")
-    summary = engine.run()
-    
-    return summary, all_orders
+    """DEPRECATED — use 02_run_backtest.py instead.
+
+    This function calls ExecutionEngine APIs that do not exist (submit_order)
+    and has incorrect run() signature. Kept only for backward compatibility;
+    will raise NotImplementedError.
+    """
+    raise NotImplementedError(
+        "run_full_pipeline() is deprecated. Use 02_run_backtest.py which "
+        "simulates orders directly with proper fill logic and cost model. "
+        "Execution Engine integration is available via execution_layer.run_cli."
+    )

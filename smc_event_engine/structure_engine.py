@@ -102,8 +102,8 @@ class StructureEngine:
             # Confluence filter (LuxAlgo: bullishBar / bearishBar)
             if is_internal and self.cfg.internal_confluence_filter:
                 upper_wick = bar.high - max(bar.close, bar.open)
-                lower_part = min(bar.close, bar.open - bar.low)
-                bullish_bar = upper_wick > lower_part
+                lower_wick = min(bar.close, bar.open) - bar.low
+                bullish_bar = upper_wick > lower_wick
                 extra_ok = extra_ok and bullish_bar
 
             # Crossover check: prev_close <= level AND close > level
@@ -151,8 +151,8 @@ class StructureEngine:
 
             if is_internal and self.cfg.internal_confluence_filter:
                 upper_wick = bar.high - max(bar.close, bar.open)
-                lower_part = min(bar.close, bar.open - bar.low)
-                bearish_bar = upper_wick < lower_part
+                lower_wick = min(bar.close, bar.open) - bar.low
+                bearish_bar = upper_wick < lower_wick
                 extra_ok = extra_ok and bearish_bar
 
             if (prev_close >= pivot_low.price > bar.close) and extra_ok:

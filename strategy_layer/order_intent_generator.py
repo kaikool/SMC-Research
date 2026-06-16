@@ -33,9 +33,7 @@ class OrderIntentGenerator:
         risk_pct = self.config.risk_per_trade_pct / 100.0
 
         order_type = ORDER_TYPE_MARKET if entry_type == "market" else ORDER_TYPE_LIMIT
-        valid_until = timestamp + self.config.max_bars_wait_entry * (
-            self.config.max_bars_wait_entry * 60 * 15 * 1000
-        )
+        valid_until = timestamp + self.config.max_bars_wait_entry * 15 * 60 * 1000
 
         intent = OrderIntent(
             timestamp=timestamp,

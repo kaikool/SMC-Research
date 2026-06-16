@@ -105,12 +105,14 @@ def load_bars_from_csv(path: str, symbol: str = "", timeframe: str = "",
 def _parse_timestamp(val) -> int:
     """Parse a timestamp value to millisecond epoch int."""
     if isinstance(val, (int, float)):
-        # Could be seconds or millis
-        if val > 1e12:  # nanosecond → millis
+        # Could be seconds / milliseconds / microseconds / nanoseconds.
+        # Modern millisecond epoch values are ~1.7e12, so do NOT classify
+        # them as nanoseconds.
+        if val > 1e17:  # nanosecond → millis
             return int(val / 1_000_000)
-        elif val > 1e9:  # microsecond → millis
+        elif val > 1e14:  # microsecond → millis
             return int(val / 1_000)
-        elif val > 1e6:  # millisecond
+        elif val > 1e11:  # millisecond
             return int(val)
         else:  # second
             return int(val * 1000)

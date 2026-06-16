@@ -130,6 +130,17 @@ class ZoneManager:
         self.add_zone(z)
         return z
 
+    def update_from_lifecycle_event(self, event: Event) -> None:
+        """Keep zones in sync when the backing OB lifecycle ends."""
+        if not event.object_id:
+            return
+        if event.event_type not in {"OB_MITIGATED", "OB_INVALIDATED", "OB_EXPIRED"}:
+            return
+        zone_id = f"zone_{event.object_id}"
+        zone = self.zones.get(zone_id)
+        if zone:
+            zone.status = event.status or event.event_type.removeprefix("OB_").lower()
+
     def update_from_fvg(self, fvg: FVG) -> Zone:
         z = Zone(
             id=f"zone_{fvg.id}",
