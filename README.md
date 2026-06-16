@@ -93,6 +93,121 @@ V8_COMBINED    2776  1623  1055   568   65.0%   +2218.05    3.70
 
 ---
 
+## 📟 Pine Script — V8 Combined Indicator
+
+Copy-paste code này vào TradingView (Pine Script v6) để xem signal trên chart.
+
+```pinescript
+//@version=6
+indicator("V8 Combined — SMC Strategy", overlay=true, format=format.price, precision=2)
+
+// ── Parameters ──────────────────────────────────────────────
+SWING_LEN = input.int(5, "Swing Length")
+INTERNAL_LEN = input.int(2, "Internal Swing Length")
+ATR_PERIOD = input.int(14, "ATR Period")
+VOL_MIN = input.float(8.0, "Min Volatility (active OB count)")
+SHOW_SIGNALS = input.bool(true, "Show Entry Signals")
+SESSION_FILTER = input.bool(true, "Session Filter (London/NY)")
+
+// ── ATR & Volatility Proxy ─────────────────────────────────
+atr = ta.atr(ATR_PERIOD)
+vol_proxy = atr / ta.sma(atr, 20) * 10  // normalize, threshold ~8
+
+// ── Session Filter ──────────────────────────────────────────
+session_ok = not SESSION_FILTER ? true :
+  time(timeframe.period, "0800-2200:12345")  // London/NY UTC
+
+// ── Swing Points ───────────────────────────────────────────
+sw_high = ta.pivothigh(SWING_LEN, SWING_LEN)
+sw_low  = ta.pivotlow(SWING_LEN, SWING_LEN)
+sw_high_price = ta.valuewhen(sw_high, high, 0)
+sw_low_price  = ta.valuewhen(sw_low, low, 0)
+sw_high_bar   = ta.valuewhen(sw_high, bar_index, 0)
+sw_low_bar    = ta.valuewhen(sw_low, bar_index, 0)
+
+// ── Trend Detection ──────────────────────────────────────────
+trend_up = close > ta.sma(close, 40) and sw_high > ta.valuewhen(sw_high, sw_high_price, 1)
+trend_dn = close < ta.sma(close, 40) and sw_low < ta.valuewhen(sw_low, sw_low_price, 1)
+
+// ── BOS / CHOCH Detection ───────────────────────────────────
+bos_up = ta.crossunder(close, sw_low_price)  // phá swing low
+bos_dn = ta.crossover(close, sw_high_price)  // phá swing high
+
+// ── Order Block Zones ───────────────────────────────────────
+// Swing OB (Rule A)
+var box swing_ob_box = na
+var label swing_ob_label = na
+
+if bos_up and trend_up  // BOS bullish → OB LONG
+    swing_ob_box := box.new(sw_low_bar, sw_high_price[1], bar_index, sw_low_price,
+      border_color=color.new(color.green, 70), bgcolor=color.new(color.green, 85))
+if bos_dn and trend_dn  // BOS bearish → OB SHORT
+    swing_ob_box := box.new(sw_high_bar, sw_high_price, bar_index, sw_low_price[1],
+      border_color=color.new(color.red, 70), bgcolor=color.new(color.red, 85))
+
+// Internal Swing (Rule B — CHOCH trên internal level)
+int_high = ta.pivothigh(INTERNAL_LEN, INTERNAL_LEN)
+int_low  = ta.pivotlow(INTERNAL_LEN, INTERNAL_LEN)
+int_h_price = ta.valuewhen(int_high, high, 0)
+int_l_price = ta.valuewhen(int_low, low, 0)
+int_h_bar   = ta.valuewhen(int_high, bar_index, 0)
+int_l_bar   = ta.valuewhen(int_low, bar_index, 0)
+
+int_bos_up = ta.crossunder(close, int_l_price)
+int_bos_dn = ta.crossover(close, int_h_price)
+
+// ── Entry Signals ───────────────────────────────────────────
+if SHOW_SIGNALS and session_ok and vol_proxy >= VOL_MIN
+    // Rule A: Swing OB entry
+    if bos_up and trend_up
+        entry_price = sw_low_price
+        sl_price = sw_low_price - (sw_high_price[1] - sw_low_price) * 0.5
+        tp_price = (sw_high_price[1] + sw_low_price) / 2
+        rr = math.abs(tp_price - entry_price) / math.abs(entry_price - sl_price)
+        label.new(bar_index, low, "LONG\nR=" + str.tostring(rr, "#.##"),
+          style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
+    if bos_dn and trend_dn
+        entry_price = sw_high_price
+        sl_price = sw_high_price + (sw_high_price - sw_low_price[1]) * 0.5
+        tp_price = (sw_high_price + sw_low_price[1]) / 2
+        rr = math.abs(tp_price - entry_price) / math.abs(entry_price - sl_price)
+        label.new(bar_index, high, "SHORT\nR=" + str.tostring(rr, "#.##"),
+          style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+
+    // Rule B: Internal CHOCH → OB entry (vol + session filter only)
+    if int_bos_up and trend_up and session_ok
+        label.new(bar_index, low, "INTR", style=label.style_label_up, color=color.new(color.green, 40),
+          textcolor=color.white, size=size.tiny)
+    if int_bos_dn and trend_dn and session_ok
+        label.new(bar_index, high, "INTR", style=label.style_label_down, color=color.new(color.red, 40),
+          textcolor=color.white, size=size.tiny)
+
+// ── Dashboard ──────────────────────────────────────────────
+var tbl = table.new(position.top_right, 2, 4)
+if barstate.islast
+    tbl.cell(0, 0, "V8 COMBINED", text_color=color.white, bgcolor=color.new(color.blue, 30))
+    tbl.cell(0, 1, "Vol: " + str.tostring(vol_proxy, "#.#"), text_color=vol_proxy >= VOL_MIN ? color.green : color.red)
+    tbl.cell(0, 2, "Session: " + (session_ok ? "LONDON/NY" : "OFF"), text_color=session_ok ? color.green : color.red)
+    tbl.cell(0, 3, "Trend: " + (trend_up ? "UP" : trend_dn ? "DOWN" : "---"), 
+      text_color=trend_up ? color.green : trend_dn ? color.red : color.gray)
+```
+
+**Cách dùng:**
+1. Mở TradingView, chart XAUUSD M15
+2. New → Pine Editor → paste code → Add to chart
+3. Signal hiện trên chart: **LONG/SHORT** (Rule A) và **INTR** (Rule B)
+4. Dashboard góc phải hiển thị Volatility, Session, Trend
+
+**Lưu ý khi code Pine:**
+- Pine không có khái niệm "active OB count" — dùng `atr / sma(atr,20) * 10` làm proxy
+- OB zone vẽ box từ swing point đến breakout bar
+- Entry signal xuất hiện tại nến breakout (BOS)
+- Stop loss = OB boundary ± 0.5×OB height
+- Take profit = equilibrium (swing high + swing low)/2
+
+---
+
 ## 🔧 Bugs fixed trong v2
 
 | Bug | Impact | Fix |
