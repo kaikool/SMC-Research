@@ -94,13 +94,16 @@ def main():
             reward=abs(tp-entry)
             for off in range(1,201):
                 bi=o.bar_index+off; bar=prices.get(bi)
-                if not bar: break
+                if not bar: losses+=1; tr+=-1.0; break  # hết dữ liệu = loss
                 if o.direction==1:
                     if bar["low"]<=sl: losses+=1; tr+=-1.0; break
                     if bar["high"]>=tp: wins+=1; tr+=reward/risk; break
                 else:
                     if bar["high"]>=sl: losses+=1; tr+=-1.0; break
                     if bar["low"]<=tp: wins+=1; tr+=reward/risk; break
+            else:
+                # 200 bars trôi qua không chạm SL/TP = loss
+                losses+=1; tr+=-1.0
         
         closed=wins+losses
         wr=wins/closed*100 if closed>0 else 0

@@ -106,6 +106,7 @@ class BaseModel:
         self.counter = 0
         self.used_signals = set()
         self.filters = TradingFilters()
+        self._bar_orders = []  # track orders per bar for dedup
     def is_dup(self, key):
         if key in self.used_signals: return True
         self.used_signals.add(key); return False
@@ -207,6 +208,7 @@ class Model5_StrongDefense(BaseModel):
 
     def on_bar(self, bar_idx, events, snapshot, active_obs):
         orders=[]
+        self._bar_orders = []  # reset per bar
         trend=i(snapshot,"current_trend"); sh=f(snapshot,"last_swing_high"); sl=f(snapshot,"last_swing_low")
         strong_h=sh if trend==-1 else 0; strong_l=sl if trend==1 else 0
         weak_h=sh if trend==1 else 0; weak_l=sl if trend==-1 else 0
@@ -222,26 +224,33 @@ class Model5_StrongDefense(BaseModel):
             
             if ns and ob_dir==1 and is_swing(ob):
                 if self.is_dup(("SL",ob_id)): continue
-                result = calc_optimal_sltp(entry, top, bot, 1, sh, sl)
-                if not result: continue
-                sl_price, tp = result
-                sl_price = max(sl_price, strong_l*0.995)
-                orders.append(OrderIntent(setup_id=f"M5_{self.counter}",model=self.name,
+                # FIX 1: chỉ LONG khi price >= strong_low (chưa phá support)
+                if price < strong_l: continue
+                # FIX 3: chỉ 1 order per bar per direction
+                if any(o.direction==1 and o.bar_index==bar_idx for o in self._bar_orders): continue
+                # FIX TP: dùng weak level (xa) thay vì equilibrium (gần)
+                tp = weak_h * 0.997 if weak_h > 0 else entry * 1.01
+                sl_price = min(strong_l * 0.995, entry - (top-bot)*0.5)
+                if entry - sl_price <= 0 or tp - entry <= 0: continue
+                o1 = OrderIntent(setup_id=f"M5_{self.counter}",model=self.name,
                     direction=1,entry_price=round(entry,2),sl_price=round(sl_price,2),tp_price=round(tp,2),
                     entry_zone_top=round(top,2),entry_zone_bottom=round(bot,2),
-                    reason=f"StrongLow→SwingOB",bar_index=bar_idx,timestamp=ts))
-                self.counter+=1
+                    reason=f"StrongLow→SwingOB",bar_index=bar_idx,timestamp=ts)
+                orders.append(o1); self._bar_orders.append(o1); self.counter+=1
+
             if nh and ob_dir==-1 and is_swing(ob):
                 if self.is_dup(("SH",ob_id)): continue
-                result = calc_optimal_sltp(entry, top, bot, -1, sh, sl)
-                if not result: continue
-                sl_price, tp = result
-                sl_price = min(sl_price, strong_h*1.005)
-                orders.append(OrderIntent(setup_id=f"M5_{self.counter}",model=self.name,
+                if price > strong_h: continue
+                if any(o.direction==-1 and o.bar_index==bar_idx for o in self._bar_orders): continue
+                # FIX TP: dùng weak level (xa) thay vì equilibrium (gần)
+                tp = weak_l * 1.003 if weak_l > 0 else entry * 0.99
+                sl_price = max(strong_h * 1.005, entry + (top-bot)*0.5)
+                if sl_price - entry <= 0 or entry - tp <= 0: continue
+                o2 = OrderIntent(setup_id=f"M5_{self.counter}",model=self.name,
                     direction=-1,entry_price=round(entry,2),sl_price=round(sl_price,2),tp_price=round(tp,2),
                     entry_zone_top=round(top,2),entry_zone_bottom=round(bot,2),
-                    reason=f"StrongHigh→SwingOB",bar_index=bar_idx,timestamp=ts))
-                self.counter+=1
+                    reason=f"StrongHigh→SwingOB",bar_index=bar_idx,timestamp=ts)
+                orders.append(o2); self._bar_orders.append(o2); self.counter+=1
         return orders
 
 # ═══════════════════════════════════════════════════════════
