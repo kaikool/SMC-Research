@@ -34,6 +34,7 @@ from strategy_layer.entry_strategies import (
     Model5_StrongDefense,
     Model7_IntCHOCH_OB,
 )
+from strategy_layer.tuned_strategies import V8_Combined
 
 DATA_PATH = "D:/Back test/Dukascopy/processed/XAUUSD_15m.parquet"
 LAYER1_DIR = Path("output") / "layer1"
@@ -290,9 +291,7 @@ def main():
 
     # ── Run 3 models ───────────────────────────
     models = [
-        ("M1_EQHEQL_CHOCH_OB", Model1_EQHEQL_Sweep_InternalCHOCH()),
-        ("M5_STRONG_DEFENSE", Model5_StrongDefense()),
-        ("M7_INTCHOCH_OB", Model7_IntCHOCH_OB()),
+        ("V8_COMBINED", V8_Combined()),
     ]
 
     all_results = []
