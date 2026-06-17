@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 [Step 3/4] Generate TradingView-style HTML chart với trade markers.
-Chạy sau 02_run_backtest.py.
+Chạy sau 02_run_strategy.py.
 
 Output: output/chart/tradingview_chart.html
 """

@@ -1,122 +1,112 @@
-# SMC Research — Cấu trúc & Luồng xử lý (v3)
+# SMC Research — Kiến trúc & Luồng xử lý (v3)
 
 ## Luồng chính
 
 ```
-                         Layer 1
-┌──────────────────────────────────────────────────────┐
-│  01_run_layer1.py                                    │
-│  smc_event_engine/  (17 modules, đã verify)          │
-│      ↓                                               │
-│  output/layer1/events.csv, objects.csv, snapshots.csv│
-└──────────────────────────────────────────────────────┘
-                            ↓
-                         Layer 2 — Strategy
-┌──────────────────────────────────────────────────────┐
-│  02_run_strategy.py  (ORCHESTRATOR — mới)            │
-│      │                                               │
-│      ├─ đọc Layer 1 output                           │
-│      ├─ xây OB cache (event-sourced)                 │
-│      ├─ chạy strategy model (V8_Combined)            │
-│      ├─ sinh OrderIntent[]                           │
-│      └─ gọi execution_core.simulate_orders()         │
-│           ↓                                          │
-│  output/backtest/trades.csv, results.csv             │
-└──────────────────────────────────────────────────────┘
-                            ↓
-                         Report
-┌──────────────────────────────────────────────────────┐
-│  03_run_report.py  (cập nhật)                        │
-│      ├─ WR, R, equity curve                          │
-│      └─ output/report/report.html                    │
-│                                                      │
-│  04_run_chart.py  (giữ nguyên)                       │
-│      └─ output/chart/tradingview_chart.html          │
-└──────────────────────────────────────────────────────┘
+                          Layer 1 — SMC Event Engine
+┌─────────────────────────────────────────────────────────────────┐
+│  01_run_layer1.py                                               │
+│  smc_event_engine/ (17 modules, đã verify)                     │
+│      → phát hiện swing, BOS/CHOCH, OB, FVG, liquidity, PD      │
+│      ↓                                                          │
+│  output/layer1/events.csv, objects.csv, snapshots.csv           │
+└─────────────────────────────────────────────────────────────────┘
+                               ↓
+                          Layer 2 — Strategy + Execution
+┌─────────────────────────────────────────────────────────────────┐
+│  02_run_strategy.py  (orchestrator)                             │
+│      ├─ đọc Layer 1 output                                      │
+│      ├─ xây OB cache (event-sourced, O(n))                     │
+│      ├─ chạy V8_Combined model → OrderIntent[]                  │
+│      ├─ execution_core.simulate_orders() → TradeRecord[]        │
+│      └─ output/backtest/results.csv, trades.csv                 │
+│                                                                 │
+│  strategy_layer/                                                │
+│    entry_strategies.py     M1/M5/M7 baseline                    │
+│    tuned_strategies.py     V8_Combined (chiến thắng)            │
+│                                                                 │
+│  execution_core.py  (generic fill/SL/TP/cost, 11 unit tests)    │
+└─────────────────────────────────────────────────────────────────┘
+                               ↓
+                          Report
+┌─────────────────────────────────────────────────────────────────┐
+│  03_run_report.py                                               │
+│      → WR, total R, equity curve, drawdown                      │
+│      → output/report/report.html, equity_curve.png              │
+│                                                                 │
+│  04_run_chart.py                                                │
+│      → TradingView-style HTML chart với trade markers           │
+│      → output/chart/tradingview_chart.html                      │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## File nào giữ, file nào bỏ
+## 3 Layer — Trách nhiệm rõ ràng
 
-### Giữ lại (đã verify, đang dùng)
+| Layer | Module | Đầu vào | Đầu ra | Biết SMC? |
+|-------|--------|---------|--------|-----------|
+| 1 — Event Engine | `smc_event_engine/` | OHLCV | events, objects, snapshots | ✅ Cốt lõi SMC |
+| 2 — Strategy | `02_run_strategy.py` + `strategy_layer/` | Layer 1 output | OrderIntent[] | ✅ Dùng OB cache |
+| 3 — Execution | `execution_core.py` | OrderIntent[] + OHLC | TradeRecord[] | ❌ Chỉ biết order/price/bar |
 
-| File / Module | Lý do |
-|---------------|-------|
-| `01_run_layer1.py` | Layer 1 pipeline |
-| `smc_event_engine/` | 17 modules SMC detection |
-| `strategy_layer/entry_strategies.py` | M1/M5/M7 models (baseline reference) |
-| `strategy_layer/tuned_strategies.py` | V8_Combined model (chiến thắng) |
-| `execution_core.py` | Fill/SL/TP generic (mới, có test) |
-| `test_execution_core.py` | Unit test execution (11 tests) |
-| `03_run_chart.py` | Chart HTML |
-| `04_run_report.py` | Report + equity curve |
+## File map
 
-### Cần tạo mới
+```
+SM C Research/
+├── 01_run_layer1.py           Layer 1 — SMC event detection
+├── 02_run_strategy.py         Layer 2+3 — Strategy + Execution (orchestrator)
+├── 03_run_report.py           Report — WR, R, equity
+├── 04_run_chart.py            Chart — TradingView HTML
+│
+├── smc_event_engine/          Layer 1 — 17 modules SMC detection
+│   ├── main.py                Orchestrator bar-by-bar
+│   ├── swing_engine.py        Swing H/L, EQH/EQL
+│   ├── structure_engine.py    BOS/CHOCH
+│   ├── ob_engine.py           Order Block creation + lifecycle
+│   ├── zone_manager.py        Zone lifecycle, OB touch events
+│   ├── no_lookahead_guard.py  Event ordering check
+│   ├── data_loader.py         Load parquet bars
+│   └── ... (10 modules nữa)
+│
+├── strategy_layer/            Layer 2 — Entry models
+│   ├── entry_strategies.py    M1/M5/M7 (baseline reference)
+│   └── tuned_strategies.py    V8_Combined (chiến thắng)
+│
+├── execution_core.py          Layer 3 — Fill/SL/TP/Cost (generic)
+├── test_execution_core.py     11 unit tests (fill, SL/TP, cost, expired, market)
+│
+├── README.md                  Tổng quan project
+├── ARCHITECTURE.md            Kiến trúc chi tiết (file này)
+├── GOALS.md                   Research loop protocol & targets
+│
+└── requirements.txt           Dependencies
+```
 
-| File | Chức năng |
-|------|-----------|
-| `02_run_strategy.py` | Orchestrator mới: OB cache → V8 model → execution_core |
+## Tách biệt Execution khỏi SMC
 
-### Xóa (code chết, không dùng)
+`execution_core.py` **không biết** các khái niệm SMC:
+- OB, FVG, CHOCH, BOS, liquidity sweep, premium/discount
+- Chỉ biết: `order_type`, `direction`, `entry_price`, `stop_loss`, `take_profit`, `OHLC bar`
 
-| File / Module | Lý do |
-|---------------|-------|
-| `02_run_backtest.py` | Gộp signal + execution cũ, thay bởi 02_run_strategy.py |
-| `strategy_layer/config.py` | Không dùng (V8 filter inline) |
-| `strategy_layer/setup_engine.py` | Không dùng |
-| `strategy_layer/setup_state_machine.py` | Không dùng |
-| `strategy_layer/filter_engine.py` | Không dùng |
-| `strategy_layer/entry_model.py` | Không dùng |
-| `strategy_layer/sl_model.py` | Không dùng |
-| `strategy_layer/tp_model.py` | Không dùng |
-| `strategy_layer/strategy_runner.py` | Không dùng |
-| `strategy_layer/order_intent_generator.py` | Không dùng |
-| `strategy_layer/decision_logger.py` | Không dùng |
-| `strategy_layer/models.py` | Không dùng (execution_core.OrderIntent thay thế) |
-
-### Để sau (hỏi bố)
-
-| File / Module | Câu hỏi |
-|---------------|---------|
-| `execution_layer/` (18 modules) | Legacy, không dùng. Xóa hay giữ? |
-| `execution_config.yaml` | Chỉ execution_layer dùng |
-| `symbol_specs.json` | Chỉ execution_layer dùng |
-
-## V8 pipeline mới (02_run_strategy.py)
+`OrderIntent` là hợp đồng duy nhất giữa Strategy Layer và Execution:
 
 ```python
-def main():
-    # 1. Load Layer 1
-    prices, events, objects, snaps = load_layer1(...)
-
-    # 2. Build OB cache (event-sourced, O(n))
-    ob_cache = build_ob_cache(objects, events, snaps)
-
-    # 3. Run strategy → OrderIntent[]
-    model = V8_Combined()
-    intents = []
-    for bi in bar_indices:
-        orders = model.on_bar(bi, events[bi], snaps[bi], ob_cache[bi])
-        for o in orders:
-            intents.append(OrderIntent(
-                setup_id=..., direction=o.direction,
-                order_type="limit", entry_price=o.entry_price,
-                entry_zone_top=o.entry_zone_top,
-                entry_zone_bottom=o.entry_zone_bottom,
-                stop_loss=o.sl_price, take_profit=o.tp_price,
-                signal_bar=o.bar_index, timestamp=o.timestamp,
-                valid_until_bar=o.bar_index + 150,
-                source=o.model,
-            ))
-
-    # 4. Execute → trades
-    trades = simulate_orders(intents, prices)
-
-    # 5. Report
-    summary = summarize_trades(trades)
-    save_results(summary, trades)
+@dataclass
+class OrderIntent:
+    setup_id: str
+    direction: int           # 1 = long, -1 = short
+    order_type: str          # "market" / "limit"
+    entry_price: float
+    entry_zone_top: float
+    entry_zone_bottom: float
+    stop_loss: float
+    take_profit: float
+    signal_bar: int
+    valid_until_bar: int
 ```
 
-**Bố cho con hỏi:**
-1. Xóa `02_run_backtest.py` hay giữ làm reference?
-2. Xóa `execution_layer/` (18 modules) không?
-3. Xóa các file strategy_layer không dùng không?
+Strategy Layer chịu trách nhiệm chuyển OB/CHOCH thành OrderIntent. Execution chỉ fill.
+
+## Unit test execution_core
+
+11 tests verify: fill long/short, TP hit, SL hit, SL > TP cùng bar, expired, cost, market order, summary.
+Chạy: `python test_execution_core.py`

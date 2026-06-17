@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 [Step 4/4] Generate HTML report + equity curve chart.
-Chạy sau 02_run_backtest.py.
+Chạy sau 02_run_strategy.py.
 
 FIXES:
   - OB active cache event-sourced (dùng active_from, lifecycle remove)

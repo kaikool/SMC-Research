@@ -308,14 +308,5 @@ class Model7_IntCHOCH_OB(BaseModel):
 # Full pipeline runner with execution layer
 # ═══════════════════════════════════════════════════════════
 def run_full_pipeline(events_path, snapshots_path, objects_path, prices_path=None):
-    """DEPRECATED — use 02_run_backtest.py instead.
-
-    This function calls ExecutionEngine APIs that do not exist (submit_order)
-    and has incorrect run() signature. Kept only for backward compatibility;
-    will raise NotImplementedError.
-    """
-    raise NotImplementedError(
-        "run_full_pipeline() is deprecated. Use 02_run_backtest.py which "
-        "simulates orders directly with proper fill logic and cost model. "
-        "Execution Engine integration is available via execution_layer.run_cli."
-    )
+    """DEPRECATED — removed in v3."""
+    raise NotImplementedError("run_full_pipeline() removed in v3. Use 02_run_strategy.py.")

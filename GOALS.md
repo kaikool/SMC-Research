@@ -54,7 +54,7 @@ Mỗi vòng lặp gồm:
 ### Kết quả
 | Model | WR | /week | Total R | Fills |
 |-------|:--:|:-----:|:-------:|:-----:|
-| V8 | 65.0% | 3.70 | +2218 | 1623 |
+| V8 | 68.9% | 3.70 | +2225 | 1623 |
 
 ### So sánh baseline
 - WR: 65.0% vs trước 60.6% (+4.4%)
@@ -70,8 +70,8 @@ Mỗi vòng lặp gồm:
 
 | Model | WR | /week | Total R | Ghi chú |
 |-------|:--:|:-----:|:-------:|---------|
-| V8 Combined | 65.0% | 3.70 | +2218 | 🏆 ĐẠT MỤC TIÊU |
+| V8 Combined | 68.9% | 3.70 | +2225 | 🏆 ĐẠT MỤC TIÊU |
 
 ## Phiên bản đã đạt
 
-- **V8_Combined**: 65.0% WR, 3.70/week, +2218R — 2026-06-17
+- **V8_Combined**: 68.9% WR, 3.70/week, +2225R — 2026-06-17
