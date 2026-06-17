@@ -19,11 +19,7 @@ LAYER1_DIR = Path("output") / "layer1"
 OUTPUT_DIR = Path("output") / "chart"
 N_CHART_BARS = 5000  # show last 5000 bars on chart
 
-from strategy_layer.entry_strategies import (
-    Model1_EQHEQL_Sweep_InternalCHOCH,
-    Model5_StrongDefense,
-    Model7_IntCHOCH_OB,
-)
+from strategy_layer.tuned_strategies import V8_Combined
 
 
 def main():
@@ -106,9 +102,7 @@ def main():
             break
 
     models = [
-        ("M1", Model1_EQHEQL_Sweep_InternalCHOCH()),
-        ("M5", Model5_StrongDefense()),
-        ("M7", Model7_IntCHOCH_OB()),
+        ("V8", V8_Combined()),
     ]
 
     trades = []
