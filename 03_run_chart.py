@@ -104,54 +104,55 @@ def main():
         orders.extend(model.on_bar(bi, events_by_bar.get(bi, []), bar_snaps.get(bi, {}), cache.get(bi, [])))
     print(f"  Orders: {len(orders)}", flush=True)
 
-    # ── Simulate trades ──
-    SPREAD = 0.30; SLIPPAGE = 0.10
-    trades = []
+    # ── Simulate trades via execution_core ──
+    print("Simulating trades for chart...", flush=True)
+    from execution_core import OrderIntent, simulate_orders, summarize_trades
+
+    # Build prices dict for simulation
+    prices = {}
+    for _, row in df.iterrows():
+        ts = row["timestamp_utc"]
+        ts_ms = int(ts.timestamp() * 1000) if hasattr(ts, "timestamp") else 0
+        bi = ts_to_bi.get(ts_ms, -1)
+        if bi >= 0:
+            prices[bi] = {"open": float(row["open"]), "high": float(row["high"]),
+                           "low": float(row["low"]), "close": float(row["close"])}
+
+    # Convert model orders to OrderIntent
+    intents = []
     for o in orders:
-        entry = o.entry_price
-        sl = o.sl_price
-        tp = o.tp_price
-        direction = o.direction
-        cost = SPREAD / 2 + SLIPPAGE
-        entry_cost = entry + cost if direction == 1 else entry - cost
-        sl_exit = sl - cost if direction == 1 else sl + cost
-        tp_exit = tp - cost if direction == 1 else tp + cost
+        intents.append(OrderIntent(
+            setup_id=f"V8_{len(intents)}",
+            direction=o.direction, order_type="limit",
+            entry_price=o.entry_price,
+            entry_zone_top=o.entry_zone_top, entry_zone_bottom=o.entry_zone_bottom,
+            stop_loss=o.sl_price, take_profit=o.tp_price,
+            signal_bar=o.bar_index, timestamp=o.timestamp,
+            valid_until_bar=o.bar_index + 150, source=o.model,
+        ))
 
-        result = "open"; exit_price = entry_cost; bars_held = 0
-        for off in range(1, 201):
-            bi = o.bar_index + off
-            bd = None
-            cbi = ts_to_bi.get(candle_data[bi]["time"] * 1000 if bi < len(candle_data) else 0)
-            # find bar data by bar_index
-            if bi < len(bar_indices):
-                for c in candle_data:
-                    if ts_to_bi.get(c["time"] * 1000) == bi:
-                        bd = c; break
-            if not bd: break
-            if direction == 1:
-                if bd["low"] <= sl_exit:
-                    result = "loss"; exit_price = sl_exit; bars_held = off; break
-                if bd["high"] >= tp_exit:
-                    result = "win"; exit_price = tp_exit; bars_held = off; break
-            else:
-                if bd["high"] >= sl_exit:
-                    result = "loss"; exit_price = sl_exit; bars_held = off; break
-                if bd["low"] <= tp_exit:
-                    result = "win"; exit_price = tp_exit; bars_held = off; break
+    trades_records = simulate_orders(intents, prices)
 
-        ts_raw = bar_snaps.get(o.bar_index, {}).get("timestamp", 0)
+    # Convert TradeRecord to chart format
+    trades = []
+    for t in trades_records:
+        ts_raw = bar_snaps.get(t.signal_bar, {}).get("timestamp", 0)
         try: ts_s = int(ts_raw) // 1000
         except: ts_s = 0
-
         trades.append({
-            "time": ts_s, "entry": round(entry_cost, 2),
-            "sl": round(sl, 2), "tp": round(tp, 2),
-            "direction": "LONG" if direction == 1 else "SHORT",
-            "model": "V8", "result": result,
-            "exit": round(exit_price, 2), "bars": bars_held,
+            "time": ts_s,
+            "entry": round(t.fill_price, 2),
+            "sl": round(t.fill_price - abs(t.net_r * (t.fill_price * 0.01)), 2) if t.net_r < 0 else 0,
+            "tp": round(t.fill_price + abs(t.net_r * (t.fill_price * 0.01)), 2) if t.net_r > 0 else 0,
+            "direction": "LONG" if t.direction == 1 else "SHORT",
+            "model": "V8",
+            "result": "win" if t.net_r > 0 else "loss",
+            "exit": round(t.exit_price, 2),
+            "bars": t.holding_bars,
         })
 
-    print(f"  Trades: {len([t for t in trades if t['time'] > 0])}", flush=True)
+    print(f"  Trades: {len(trades)} (wins={sum(1 for t in trades if t['result']=='win')}, "
+          f"losses={sum(1 for t in trades if t['result']=='loss')})", flush=True)
 
     # ── Generate HTML ──
     candles_json = json.dumps(candle_data)
