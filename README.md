@@ -80,48 +80,70 @@ V8_COMBINED:  68.9% WR | 3.70/week | +2225.32R
 
 ---
 
-## 📟 Pine Script — copy-paste lên TradingView
+## 📟 Hướng dẫn code Pine Script
+
+Dưới đây là spec chi tiết để dev Pine Script implement. Con không đủ kỹ năng Pine để code trực tiếp — chỉ mô tả logic.
+
+### Rule A — Swing OB + trend
+
+```
+Điều kiện vào lệnh:
+- Có swing high/low (ta.pivothigh/pivotlow, left=5, right=5)
+- Giá phá vỡ swing level (BOS): close > swing_high hoặc close < swing_low
+- Trend cùng chiều: close > SMA(40) cho LONG, close < SMA(40) cho SHORT
+- Entry tại OB boundary:
+    LONG: entry = giá thấp nhất trong đoạn [swing_low_bar, break_bar]
+    SHORT: entry = giá cao nhất trong đoạn [swing_high_bar, break_bar]
+- SL: entry - 0.5 × (OB_top - OB_bottom) cho LONG, entry + 0.5 × (OB_top - OB_bottom) cho SHORT
+- TP: (swing_high + swing_low) / 2 (equilibrium)
+
+Vẽ box OB: từ swing point đến break bar, màu xanh cho LONG, đỏ cho SHORT.
+```
+
+### Rule B — CHOCH + Int OB + filters
+
+```
+Điều kiện vào lệnh:
+- Có CHOCH (close phá vỡ internal swing, left=2, right=2)
+- Có Internal OB cùng hướng (cách detect tương tự Rule A nhưng dùng internal pivot)
+- Trend cùng chiều
+- Volatility ≥ ngưỡng: ATR(14) / SMA(ATR(14), 20) × 10 ≥ 8
+- Session: London (08-16) hoặc NY (13-22) UTC
+- Entry tại OB mid: (OB_top + OB_bottom) / 2
+- SL: OB_bottom - 0.5 × height cho LONG, OB_top + 0.5 × height cho SHORT
+- TP: equilibrium
+
+Không trade nếu volatility < ngưỡng hoặc ngoài giờ London/NY.
+```
+
+### Parameters cho Pine
 
 ```pinescript
-//@version=6
-indicator("V8 Combined — SMC Strategy", overlay=true, format=format.price, precision=2)
-
-SWING_LEN = input.int(5, "Swing Length")
-VOL_MIN = input.float(8.0, "Min Volatility")
-SHOW_SIGNALS = input.bool(true, "Show Entry Signals")
-
-atr = ta.atr(14)
-vol_proxy = atr / ta.sma(atr, 20) * 10
-session_ok = time(timeframe.period, "0800-2200:12345")
-
-sw_high = ta.pivothigh(SWING_LEN, SWING_LEN)
-sw_low  = ta.pivotlow(SWING_LEN, SWING_LEN)
-sw_hp = ta.valuewhen(sw_high, high, 0)
-sw_lp = ta.valuewhen(sw_low, low, 0)
-
-trend_up = close > ta.sma(close, 40) and sw_hp > ta.valuewhen(sw_high, sw_hp, 1)
-trend_dn = close < ta.sma(close, 40) and sw_lp < ta.valuewhen(sw_low, sw_lp, 1)
-
-bos_up = ta.crossunder(close, sw_lp)
-bos_dn = ta.crossover(close, sw_hp)
-
-if SHOW_SIGNALS and session_ok and vol_proxy >= VOL_MIN
-    if bos_up and trend_up
-        entry = sw_lp
-        sl = sw_lp - (sw_hp[1] - sw_lp) * 0.5
-        tp = (sw_hp[1] + sw_lp) / 2
-        rr = math.abs(tp - entry) / math.abs(entry - sl)
-        label.new(bar_index, low, "LONG\nR=" + str.tostring(rr, "#.##"),
-          style=label.style_label_up, color=color.green, textcolor=color.white)
-
-    if bos_dn and trend_dn
-        entry = sw_hp
-        sl = sw_hp + (sw_hp - sw_lp[1]) * 0.5
-        tp = (sw_hp + sw_lp[1]) / 2
-        rr = math.abs(tp - entry) / math.abs(entry - sl)
-        label.new(bar_index, high, "SHORT\nR=" + str.tostring(rr, "#.##"),
-          style=label.style_label_down, color=color.red, textcolor=color.white)
+// Inputs
+SWING_LEN = input.int(5, "Swing Pivot Length")
+INTERNAL_LEN = input.int(2, "Internal Pivot Length")
+ATR_PERIOD = input.int(14, "ATR Period")
+VOL_THRESHOLD = input.float(8.0, "Vol Threshold (ATR/SMA*10)")
+SESSION_START = input.string("0800", "Session Start (UTC)")
+SESSION_END = input.string("2200", "Session End (UTC)")
+TREND_MA = input.int(40, "Trend MA Period")
 ```
+
+### Lưu ý khi code
+
+1. `ta.pivothigh(5,5)` và `ta.pivotlow(5,5)` cho swing — nhớ `ta.valuewhen()` để lấy giá và bar index
+2. Khi BOS xảy ra, OB zone là vùng giữa swing point và bar phá vỡ
+3. Cần `var` để track OB zone có thời gian sống (200 bars hoặc đến khi bị mitigate)
+4. SL/TP cần được set ngay khi vào lệnh, không thay đổi sau đó (trừ trailing nếu muốn)
+5. Volatility proxy: `ta.atr(14) / ta.sma(ta.atr(14), 20) * 10`. Ngưỡng 8 tương đương volatility cao.
+6. `time(timeframe.period, SESSION_START + "-" + SESSION_END + ":12345")` cho session filter
+7. Consolidate tín hiệu: nếu Rule A và Rule B cùng vào 1 bar → vào 1 lệnh (không double)
+
+### Tham khảo
+
+- File `strategy_layer/tuned_strategies.py` class `V8_Combined` — implementation Python đầy đủ
+- File `execution_core.py` — fill/SL/TP/cost model để tham khảo cách tính R
+- Các hằng số cost: spread 0.30, slippage 0.10 (XAUUSD, price units)
 
 ---
 
