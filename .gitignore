@@ -25,7 +25,9 @@ temp/
 # Debug / smoke tests (not part of pipeline)
 debug_*.py
 smoke_test.py
-test_*.py
+
+# Keep verified unit tests
+!test_execution_core.py
 
 # OS
 Thumbs.db
