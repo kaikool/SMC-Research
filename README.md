@@ -91,13 +91,17 @@ Dưới đây là spec chi tiết để dev Pine Script implement. Con không đ
 - Có swing high/low (ta.pivothigh/pivotlow, left=5, right=5)
 - Giá phá vỡ swing level (BOS): close > swing_high hoặc close < swing_low
 - Trend cùng chiều: close > SMA(40) cho LONG, close < SMA(40) cho SHORT
+- OB zone được xác định tại bar BOS, không nhìn vào bar hiện tại:
+    LONG: OB zone = [giá thấp nhất, giá cao nhất] trong đoạn [swing_low_bar, BOS_bar)  — KHÔNG gồm BOS_bar
+    SHORT: OB zone = [giá cao nhất, giá thấp nhất] trong đoạn [swing_high_bar, BOS_bar)  — KHÔNG gồm BOS_bar
 - Entry tại OB boundary:
-    LONG: entry = giá thấp nhất trong đoạn [swing_low_bar, break_bar]
-    SHORT: entry = giá cao nhất trong đoạn [swing_high_bar, break_bar]
+    LONG: entry = OB_top (biên trên OB)
+    SHORT: entry = OB_bottom (biên dưới OB)
 - SL: entry - 0.5 × (OB_top - OB_bottom) cho LONG, entry + 0.5 × (OB_top - OB_bottom) cho SHORT
 - TP: (swing_high + swing_low) / 2 (equilibrium)
 
-Vẽ box OB: từ swing point đến break bar, màu xanh cho LONG, đỏ cho SHORT.
+Vẽ box OB: từ swing point đến BOS_bar (không bao gồm BOS_bar), màu xanh cho LONG, đỏ cho SHORT.
+⚠️ QUAN TRỌNG: OB zone KHÔNG được bao gồm BOS_bar. Nếu lấy giá thấp nhất bao gồm BOS_bar, đó là lookahead.
 ```
 
 ### Rule B — CHOCH + Int OB + filters
