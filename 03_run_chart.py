@@ -96,7 +96,35 @@ def main():
         cache[bi] = [ob_by_id[oid] for oid in active_ids
                      if oid in ob_by_id and bi - ob_by_id[oid].get("_bar_index", 0) <= 200]
 
-    # ── Run V8 model ──
+    # ── Load OB zones ──
+    # Vẽ OB active tại 5000 bars cuối
+    print("Loading OB zones for chart...", flush=True)
+    end_bi = max(ts_to_bi.values()) if ts_to_bi else max(bar_indices)
+    start_bi = max(0, end_bi - 5000)
+    ob_zones = []
+    for ob in all_objects:
+        try:
+            oid = ob.get("object_id", "")
+            if not ob.get("_bar_index"):
+                af = int(ob.get("active_from", 0))
+                ob["_bar_index"] = ts_to_bi.get(af, -1)
+            ob_bi = ob.get("_bar_index", -1)
+            if ob_bi < start_bi or ob_bi > end_bi: continue
+            ca = int(ob.get("created_at", 0))
+            ca_bi = ts_to_bi.get(ca, -1)
+            # Get OB zone timestamp (origin bar)
+            origin_ts = int(ob.get("created_at", 0))
+            origin_ts_s = origin_ts // 1000
+            ob_zones.append({
+                "time": origin_ts_s,
+                "top": float(ob.get("top", 0)),
+                "bottom": float(ob.get("bottom", 0)),
+                "direction": "bullish" if ob.get("direction") == "1" else "bearish",
+                "type": ob.get("type", ""),
+                "active_from_bi": ob_bi,
+            })
+        except: pass
+    print(f"  OB zones: {len(ob_zones)}", flush=True)
     print("Running V8 for chart...", flush=True)
     model = V8_Combined()
     orders = []
@@ -157,12 +185,13 @@ def main():
     # ── Generate HTML ──
     candles_json = json.dumps(candle_data)
     trades_json = json.dumps([t for t in trades if t["time"] > 0])
+    ob_zones_json = json.dumps(ob_zones[:200])  # limit to avoid overloading
 
     html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>XAUUSD M15 — V8 Combined Trades</title>
+<title>XAUUSD M15 — V8 Combined Trades + OB Zones</title>
 <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   body {{ margin: 0; background: #131722; font-family: -apple-system, sans-serif; }}
@@ -181,17 +210,19 @@ def main():
   <span>Wins: <b class="green" id="winCount">0</b></span>
   <span>Losses: <b class="red" id="lossCount">0</b></span>
   <span>WR: <b class="blue" id="wrPct">0%</b></span>
+  <span>OB: <b id="obCount">0</b></span>
 </div>
 
 <script>
 const candleData = {candles_json};
 const tradeData = {trades_json};
+const obZones = {ob_zones_json};
 
 const chart = LightweightCharts.createChart(document.getElementById('chart'), {{
     layout: {{ textColor: '#d1d4dc', background: {{ type: 'solid', color: '#131722' }} }},
     grid: {{ vertLines: {{ color: '#2a2e39' }}, horzLines: {{ color: '#2a2e39' }} }},
     crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
-    timeScale: {{ timeVisible: true, secondsVisible: false, borderColor: '#2a2e39' }},
+    timeScale: {{ timeVisible: true, secondsVisible: true, borderColor: '#2a2e39' }},
     rightPriceScale: {{ borderColor: '#2a2e39' }},
 }});
 
@@ -202,6 +233,27 @@ const candleSeries = chart.addCandlestickSeries({{
 }});
 candleSeries.setData(candleData);
 
+// ── OB Price Lines ──
+const obColors = {{ bullish: '#089981', bearish: '#f23645' }};
+obZones.forEach((ob) => {{
+    const col = obColors[ob.direction] || '#888';
+    candleSeries.createPriceLine({{
+        price: ob.top,
+        color: col,
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: false,
+    }});
+    candleSeries.createPriceLine({{
+        price: ob.bottom,
+        color: col,
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: false,
+    }});
+}});
+
+// ── Trade Markers ──
 const markers = [];
 let wins = 0, losses = 0;
 tradeData.forEach((t) => {{
@@ -217,11 +269,13 @@ tradeData.forEach((t) => {{
 }});
 candleSeries.setMarkers(markers);
 
+// ── Legend ──
 const total = wins + losses;
 document.getElementById('tradeCount').textContent = total;
 document.getElementById('winCount').textContent = wins;
 document.getElementById('lossCount').textContent = losses;
 document.getElementById('wrPct').textContent = total > 0 ? (wins/total*100).toFixed(1)+'%' : '0%';
+document.getElementById('obCount').textContent = obZones.length;
 
 chart.timeScale().fitContent();
 </script>
