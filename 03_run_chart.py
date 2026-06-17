@@ -100,8 +100,10 @@ def main():
     # Vẽ OB active tại 5000 bars cuối
     print("Loading OB zones for chart...", flush=True)
     end_bi = max(ts_to_bi.values()) if ts_to_bi else max(bar_indices)
-    start_bi = max(0, end_bi - 5000)
+    start_bi = max(0, end_bi - 50000)
+    
     ob_zones = []
+    seen_prices = set()
     for ob in all_objects:
         try:
             oid = ob.get("object_id", "")
@@ -109,19 +111,24 @@ def main():
                 af = int(ob.get("active_from", 0))
                 ob["_bar_index"] = ts_to_bi.get(af, -1)
             ob_bi = ob.get("_bar_index", -1)
-            if ob_bi < start_bi or ob_bi > end_bi: continue
-            ca = int(ob.get("created_at", 0))
-            ca_bi = ts_to_bi.get(ca, -1)
-            # Get OB zone timestamp (origin bar)
+            if ob_bi < start_bi or ob_bi > end_bi: 
+                continue
+            
+            top = float(ob.get("top", 0))
+            bottom = float(ob.get("bottom", 0))
+            key = (round(top, 2), round(bottom, 2), ob.get("direction", ""))
+            if key in seen_prices:
+                continue  # skip duplicate zone prices
+            seen_prices.add(key)
+            
             origin_ts = int(ob.get("created_at", 0))
             origin_ts_s = origin_ts // 1000
             ob_zones.append({
                 "time": origin_ts_s,
-                "top": float(ob.get("top", 0)),
-                "bottom": float(ob.get("bottom", 0)),
+                "top": top,
+                "bottom": bottom,
                 "direction": "bullish" if ob.get("direction") == "1" else "bearish",
                 "type": ob.get("type", ""),
-                "active_from_bi": ob_bi,
             })
         except: pass
     print(f"  OB zones: {len(ob_zones)}", flush=True)
@@ -185,7 +192,7 @@ def main():
     # ── Generate HTML ──
     candles_json = json.dumps(candle_data)
     trades_json = json.dumps([t for t in trades if t["time"] > 0])
-    ob_zones_json = json.dumps(ob_zones[:200])  # limit to avoid overloading
+    ob_zones_json = json.dumps(ob_zones[:500])  # limit to avoid overloading
 
     html = f"""<!DOCTYPE html>
 <html>
