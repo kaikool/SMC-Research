@@ -108,8 +108,19 @@ class ZoneManager:
         for zid in self.zone_order:
             z = self.zones.get(zid)
             if not z:
+                to_remove.append(zid)
                 continue
-            # Zone age check would go here if we track creation bar
+            if z.status != "active":
+                # Remove inactive zones (mitigated, invalidated, expired)
+                to_remove.append(zid)
+                continue
+            # Check age if we have creation bar info
+            # (zone doesn't track creation bar currently, so this is skipped)
+        # Clean up touched zones that are no longer active
+        stale_touches = {zid for zid in self._touched_zones if zid not in self.zones
+                         or self.zones[zid].status != "active"}
+        self._touched_zones -= stale_touches
+
         for zid in to_remove:
             self.remove_zone(zid)
         return events

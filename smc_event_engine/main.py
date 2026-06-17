@@ -75,6 +75,8 @@ class SMCEngine:
             self._process_bar(bar, i)
 
         self.output.close_all()
+        # Final zone cleanup
+        self.zone_manager.clean_expired(len(bars))
 
     def _process_bar(self, bar: Bar, bar_index: int) -> None:
         """Process a single bar through all engines."""
@@ -129,6 +131,9 @@ class SMCEngine:
         zone_touch_events = self.zone_manager.check_touches(bar, bar_index)
         self._emit_events(zone_touch_events)
         self.zone_manager.update_snapshot(snapshot)
+        # Clean expired zones periodically (every 50 bars)
+        if bar_index > 0 and bar_index % 50 == 0:
+            self.zone_manager.clean_expired(bar_index)
 
         # ── 8. Liquidity Sweep Detection ────────────────────────
         liq_events = self.liquidity.on_bar(
