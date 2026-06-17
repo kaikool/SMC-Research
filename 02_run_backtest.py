@@ -34,7 +34,7 @@ from strategy_layer.entry_strategies import (
     Model5_StrongDefense,
     Model7_IntCHOCH_OB,
 )
-from strategy_layer.tuned_strategies import V8_Combined
+from strategy_layer.tuned_strategies import V8_Combined, V2d_Vol8Session
 
 DATA_PATH = "D:/Back test/Dukascopy/processed/XAUUSD_15m.parquet"
 LAYER1_DIR = Path("output") / "layer1"
@@ -170,10 +170,8 @@ def simulate_limit_fills(orders, prices):
 
 def simulate_orders_manual(model_name, filled_orders, prices):
     """Simulate each filled order bar-by-bar with OHLC SL/TP check.
-
-    Returns dict with wins, losses, total_r, timeouts.
-    Uses the same logic as the original simulate_order but accepts
-    (order, fill_bar) tuples.
+    Fix: apply cost to BOTH entry and exit.
+    Fix: count open_at_end trades (không drop silently).
     """
     if not filled_orders:
         return {"model": model_name, "generated": 0, "filled": 0,
@@ -185,6 +183,7 @@ def simulate_orders_manual(model_name, filled_orders, prices):
     timeouts = 0
     open_at_end = 0
     total_r = 0.0
+    cost = SPREAD / 2 + SLIPPAGE
 
     for o, fill_bar in filled_orders:
         entry = o.entry_price
@@ -192,12 +191,19 @@ def simulate_orders_manual(model_name, filled_orders, prices):
         tp = o.tp_price
         direction = o.direction
 
-        # Apply cost
-        cost = SPREAD / 2 + SLIPPAGE
-        entry_cost = entry + cost if direction == 1 else entry - cost
-        risk = abs(entry_cost - sl)
+        # Cost-adjusted entry and exit prices
+        if direction == 1:  # LONG: pay ask at entry, receive bid at exit
+            entry_cost = entry + cost
+            sl_exit = sl - cost
+            tp_exit = tp - cost
+        else:  # SHORT: receive bid at entry, pay ask at exit
+            entry_cost = entry - cost
+            sl_exit = sl + cost
+            tp_exit = tp + cost
+
+        risk = abs(entry_cost - sl_exit)
         if risk <= 0:
-            risk = 1  # safety
+            risk = 1
 
         # Scan bars from fill_bar onward
         result = None
@@ -207,36 +213,37 @@ def simulate_orders_manual(model_name, filled_orders, prices):
             if not bar:
                 result = "open_at_end"
                 break
-            if direction == 1:  # LONG
-                if bar["low"] <= sl:
+            if direction == 1:
+                if bar["low"] <= sl_exit:
                     result = "loss"
                     break
-                if bar["high"] >= tp:
-                    reward = abs(tp - entry_cost)
+                if bar["high"] >= tp_exit:
                     result = "win"
-                    total_r += reward / risk
+                    total_r += abs(tp_exit - entry_cost) / risk
                     break
-            else:  # SHORT
-                if bar["high"] >= sl:
+            else:
+                if bar["high"] >= sl_exit:
                     result = "loss"
                     break
-                if bar["low"] <= tp:
-                    reward = abs(tp - entry_cost)
+                if bar["low"] <= tp_exit:
                     result = "win"
-                    total_r += reward / risk
+                    total_r += abs(tp_exit - entry_cost) / risk
                     break
         else:
-            # Timeout: exit at last bar's close
+            # Timeout after MAX_HOLD bars
             result = "timeout"
-            last_bar = prices.get(fill_bar + MAX_HOLD, None)
+            last_bar = prices.get(fill_bar + MAX_HOLD)
             if last_bar:
+                exit_price = last_bar["close"]
+                # Apply exit cost to timeout close
                 if direction == 1:
-                    r_mult = (last_bar["close"] - entry_cost) / risk
+                    exit_cost = exit_price - cost
                 else:
-                    r_mult = (entry_cost - last_bar["close"]) / risk
+                    exit_cost = exit_price + cost
+                r_mult = (exit_cost - entry_cost) / risk if direction == 1 else (entry_cost - exit_cost) / risk
                 total_r += r_mult
             else:
-                total_r += -1.0  # worst case
+                total_r += -1.0
 
         if result == "win":
             wins += 1
@@ -292,6 +299,7 @@ def main():
     # ── Run 3 models ───────────────────────────
     models = [
         ("V8_COMBINED", V8_Combined()),
+        ("V2D_VOL8SES", V2d_Vol8Session()),
     ]
 
     all_results = []
